@@ -1,3 +1,4 @@
 .vscode
 __init__.py
-db.py
+db.pp
+__pycache__
