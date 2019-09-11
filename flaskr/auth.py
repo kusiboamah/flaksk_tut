@@ -6,10 +6,37 @@ from flaskr.db import get_db
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
 
+# user has to login before accessing some pages
+def login_required(view):
+    @functools.wraps(view)
+    def wrapped_views(**kwargs):
+        if g.user is None:
+            return redirect(url_for('auth.login'))
+        
+        return view(**kwargs)
+    
+    return wrapped_views
+
+
+# if user already logged in route
+@bp.before_app_request
+def load_logged_in_user():
+    """If a user id is stored in the session, load the user object from
+    the database into ``g.user``."""
+    user_id = session.get("user_id")
+
+    if user_id is None:
+        g.user = None
+    else:
+        g.user = (
+            get_db().execute("SELECT * FROM user WHERE id = ?", (user_id,)).fetchone()
+        )
+        
+
 # this is registration route for new user to register
 @bp.route('/register', methods=('GET', 'POST'))
 def register():
-    if request.methods == 'POST':
+    if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
         db = get_db()
@@ -20,7 +47,7 @@ def register():
         elif not password:
             error = 'Password is required.'
         elif db.execute(
-            'SELECT id FROM user WERE username = ?', (username)
+            'SELECT id FROM user WHERE username = ?', (username,)
         ).fetchone() is not None:
             error = 'User {} is already registered.'.format(username)
             
@@ -61,30 +88,10 @@ def login():
         flash(error)
     return render_template('auth/login.html')
 
-# if user already logged in route
-@bp.before_app_request
-def load_logged_in_user():
-    user_id = session.get('user_id')
-    
-    if user_id is None:
-        g.user = get_db().execute(
-            'SELECT * FROM user WHERE id = ?', (user_id,)
-        ).fetchone()
-        
         
 # the route for the user to logout
 @bp.route('/logout')
 def logout():
+    """Clear the current session, including the stored user id."""
     session.clear()
     return redirect(url_for('index'))
-
-# user has to login before accessing some pages
-def login_required(view):
-    @functools.wraps(view)
-    def wrapped_views(**kwargs):
-        if g.user is None:
-            return redirect(url_for('auth.login'))
-        
-        return view(**kwargs)
-    
-    return wrapped_views
